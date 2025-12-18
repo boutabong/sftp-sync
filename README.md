@@ -189,4 +189,4 @@ window-rule {
 
 ## License
 
-Original Script Rewritten to Go.
+Original script Rewritten to Go.

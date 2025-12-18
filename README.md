@@ -6,8 +6,8 @@ A powerful FTP/SFTP synchronization and mounting tool written in Go.
 
 ## Features
 
-- **Bidirectional sync**: Upload and download entire directories
-- **Single file operations**: Push/pull individual files
+- **Bidirectional sync**: Upload and download entire directories from current directory
+- **Single file operations**: Push/pull individual files from current directory
 - **Remote mounting**: Mount FTP/SFTP servers as local filesystems
 - **Yazi integration**: Browse remote files with yazi file manager in a floating window
 - **Multi-profile support**: Manage multiple server configurations
@@ -65,8 +65,7 @@ Create config file at `~/.config/sftp-sync/config.json`:
     "password": "password",
     "port": 21,
     "protocol": "ftp",
-    "remotePath": "/public_html",
-    "context": "/home/user/projects/website"
+    "remotePath": "/public_html"
   },
   "webserver": {
     "host": "example.com",
@@ -74,8 +73,7 @@ Create config file at `~/.config/sftp-sync/config.json`:
     "password": "password",
     "port": 22,
     "protocol": "sftp",
-    "remotePath": "/var/www/html",
-    "context": "/home/user/projects/webapp"
+    "remotePath": "/var/www/html"
   },
   "sshkey-server": {
     "host": "example.com",
@@ -84,7 +82,7 @@ Create config file at `~/.config/sftp-sync/config.json`:
     "port": 22,
     "protocol": "sftp",
     "remotePath": "/var/www/html",
-    "context": "/home/user/projects/webapp"
+    "context": "/home/user/.mounted/myserver"
   }
 }
 ```
@@ -98,28 +96,35 @@ Create config file at `~/.config/sftp-sync/config.json`:
 - `port` (optional) - Port number (default: 21 for FTP, 22 for SFTP)
 - `protocol` (optional) - "ftp" or "sftp" (default: "ftp")
 - `remotePath` (optional) - Remote directory path (default: "/")
-- `context` (required) - Local directory path
+- `context` (optional) - Custom mount point directory (default: `~/.mounted/<profile-name>`)
 
 **Note for SFTP:** You can use either `password` or `sshKey` for authentication. If both are provided, `sshKey` will be preferred.
+
+**Note on context:** The `context` field is only used for mount operations. Sync commands (`up`, `down`, `push`, `pull`) always operate on your current working directory.
 
 ## Usage
 
 ### Sync Commands
 
+All sync commands operate on your **current working directory**:
+
 ```bash
-# Upload entire directory
+# Navigate to your project directory
+cd /path/to/your/project
+
+# Upload current directory to remote
 sftp-sync up myserver
 
-# Download entire directory
+# Download remote directory to current directory
 sftp-sync down myserver
 
-# Preview what would be uploaded
+# Preview what would be uploaded from current directory
 sftp-sync diff myserver
 
-# Upload single file
+# Upload single file from current directory
 sftp-sync push myserver index.html
 
-# Download single file
+# Download single file to current directory
 sftp-sync pull myserver style.css
 ```
 
@@ -128,7 +133,8 @@ sftp-sync pull myserver style.css
 ```bash
 # Mount remote filesystem
 sftp-sync mount myserver
-# Mounts to: ~/.mounted/myserver/
+# Default mount point: ~/.mounted/myserver/
+# Or uses custom 'context' path from config if set
 
 # Mount and open in yazi
 sftp-sync mount myserver --yazi

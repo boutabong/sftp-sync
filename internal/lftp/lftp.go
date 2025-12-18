@@ -38,8 +38,8 @@ func buildCommand(profile *config.Profile, ftpCommand string) *exec.Cmd {
 		sshCmd := fmt.Sprintf("ssh -a -x -i %s", profile.SSHKey)
 		settings = fmt.Sprintf("set sftp:connect-program '%s'; set ftp:ssl-allow no; %s", sshCmd, ftpCommand)
 
-		// For SSH key auth, username is still needed but password can be empty
-		credentials := profile.Username
+		// For SSH key auth, use empty password to prevent password prompt
+		credentials := profile.Username + ","
 		args := []string{
 			"-e", settings + "; quit",
 			"-u", credentials,

@@ -44,9 +44,7 @@ func (p *Profile) Validate() error {
 			return ErrMissingPassword
 		}
 	}
-	if p.Context == "" {
-		return ErrMissingContext
-	}
+	// Context is now optional - only used for mount operations
 	return nil
 }
 

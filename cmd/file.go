@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"sftp-sync/internal/config"
@@ -32,15 +33,22 @@ func Push(profileName, filePath string) error {
 		return err
 	}
 
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		notify.Error("SFTP Error", "Cannot determine current directory")
+		return fmt.Errorf("cannot determine current directory")
+	}
+
+	// Override profile context with cwd
+	profile.Context = cwd
+
 	// Get relative path for display
 	relPath := filepath.Base(filePath)
 	absFile, err := filepath.Abs(filePath)
 	if err == nil {
-		absLocal, err := filepath.Abs(profile.Context)
-		if err == nil && absFile != absLocal {
-			if rel, err := filepath.Rel(absLocal, absFile); err == nil {
-				relPath = rel
-			}
+		if rel, err := filepath.Rel(cwd, absFile); err == nil {
+			relPath = rel
 		}
 	}
 
@@ -78,6 +86,16 @@ func Pull(profileName, filePath string) error {
 		notify.Error("SFTP Sync Error", err.Error())
 		return err
 	}
+
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		notify.Error("SFTP Error", "Cannot determine current directory")
+		return fmt.Errorf("cannot determine current directory")
+	}
+
+	// Override profile context with cwd
+	profile.Context = cwd
 
 	// Get relative path for display
 	relPath := filepath.Base(filePath)

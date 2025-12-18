@@ -32,14 +32,18 @@ func Up(profileName string) error {
 		return err
 	}
 
-	// Verify local path exists
-	if _, err := os.Stat(profile.Context); os.IsNotExist(err) {
-		msg := fmt.Sprintf("Local path not found: %s", profile.Context)
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		msg := "Cannot determine current directory"
 		notify.Error("SFTP Error", msg)
 		return fmt.Errorf(msg)
 	}
 
-	fmt.Fprintf(os.Stderr, "Debug: Uploading from '%s' to '%s' on %s\n", profile.Context, profile.RemotePath, profile.Host)
+	// Override profile context with cwd
+	profile.Context = cwd
+
+	fmt.Fprintf(os.Stderr, "Debug: Uploading from '%s' to '%s' on %s\n", cwd, profile.RemotePath, profile.Host)
 	notify.Info("SFTP Sync", fmt.Sprintf("Uploading to %s...", profile.Host))
 
 	// Perform sync
@@ -92,14 +96,18 @@ func Down(profileName string) error {
 		return err
 	}
 
-	// Verify local path exists
-	if _, err := os.Stat(profile.Context); os.IsNotExist(err) {
-		msg := fmt.Sprintf("Local path not found: %s", profile.Context)
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		msg := "Cannot determine current directory"
 		notify.Error("SFTP Error", msg)
 		return fmt.Errorf(msg)
 	}
 
-	fmt.Fprintf(os.Stderr, "Debug: Downloading from '%s' on %s to '%s'\n", profile.RemotePath, profile.Host, profile.Context)
+	// Override profile context with cwd
+	profile.Context = cwd
+
+	fmt.Fprintf(os.Stderr, "Debug: Downloading from '%s' on %s to '%s'\n", profile.RemotePath, profile.Host, cwd)
 	notify.Info("SFTP Sync", fmt.Sprintf("Downloading from %s...", profile.Host))
 
 	// Perform sync
@@ -151,6 +159,16 @@ func Diff(profileName string) error {
 		notify.Error("SFTP Sync Error", err.Error())
 		return err
 	}
+
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		notify.Error("SFTP Error", "Cannot determine current directory")
+		return fmt.Errorf("cannot determine current directory")
+	}
+
+	// Override profile context with cwd
+	profile.Context = cwd
 
 	notify.Info("SFTP Sync", "Comparing local vs remote...")
 

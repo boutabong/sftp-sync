@@ -16,7 +16,14 @@ const (
 )
 
 // GetMountPoint returns the mount point path for a profile
-func GetMountPoint(profileName string) (string, error) {
+// If profile has a context set, use that; otherwise use ~/.mounted/<profileName>
+func GetMountPoint(profileName string, profile *config.Profile) (string, error) {
+	// If context is set in config, use it
+	if profile != nil && profile.Context != "" {
+		return profile.Context, nil
+	}
+
+	// Otherwise use default: ~/.mounted/<profileName>
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("cannot determine home directory: %w", err)
@@ -25,8 +32,8 @@ func GetMountPoint(profileName string) (string, error) {
 }
 
 // IsMounted checks if a profile is currently mounted
-func IsMounted(profileName string) bool {
-	mountPoint, err := GetMountPoint(profileName)
+func IsMounted(profileName string, profile *config.Profile) bool {
+	mountPoint, err := GetMountPoint(profileName, profile)
 	if err != nil {
 		return false
 	}
@@ -60,7 +67,8 @@ func ListMounted() ([]string, error) {
 	for _, entry := range entries {
 		if entry.IsDir() {
 			profileName := entry.Name()
-			if IsMounted(profileName) {
+			// Check default mount point (nil profile)
+			if IsMounted(profileName, nil) {
 				mounted = append(mounted, profileName)
 			}
 		}
@@ -71,13 +79,13 @@ func ListMounted() ([]string, error) {
 
 // Mount mounts a remote filesystem based on the protocol
 func Mount(profileName string, profile *config.Profile) error {
-	mountPoint, err := GetMountPoint(profileName)
+	mountPoint, err := GetMountPoint(profileName, profile)
 	if err != nil {
 		return err
 	}
 
 	// Check if already mounted
-	if IsMounted(profileName) {
+	if IsMounted(profileName, profile) {
 		return fmt.Errorf("profile '%s' is already mounted at %s", profileName, mountPoint)
 	}
 
@@ -105,7 +113,7 @@ func Mount(profileName string, profile *config.Profile) error {
 	}
 
 	// Verify mount succeeded
-	if !IsMounted(profileName) {
+	if !IsMounted(profileName, profile) {
 		os.RemoveAll(mountPoint)
 		return fmt.Errorf("mount verification failed")
 	}
@@ -114,14 +122,14 @@ func Mount(profileName string, profile *config.Profile) error {
 }
 
 // Unmount unmounts a profile's filesystem
-func Unmount(profileName string) error {
-	mountPoint, err := GetMountPoint(profileName)
+func Unmount(profileName string, profile *config.Profile) error {
+	mountPoint, err := GetMountPoint(profileName, profile)
 	if err != nil {
 		return err
 	}
 
 	// Check if mounted
-	if !IsMounted(profileName) {
+	if !IsMounted(profileName, profile) {
 		return fmt.Errorf("profile '%s' is not mounted", profileName)
 	}
 
@@ -148,7 +156,8 @@ func UnmountAll() error {
 
 	var errors []string
 	for _, profileName := range mounted {
-		if err := Unmount(profileName); err != nil {
+		// Try to unmount with nil profile (uses default path)
+		if err := Unmount(profileName, nil); err != nil {
 			errors = append(errors, fmt.Sprintf("%s: %v", profileName, err))
 		}
 	}

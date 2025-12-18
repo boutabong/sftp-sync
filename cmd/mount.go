@@ -56,7 +56,7 @@ func Mount(profileName string, openYazi bool) error {
 		// Detailed error notification
 		errorMsg := err.Error()
 		if strings.Contains(errorMsg, "already mounted") {
-			mountPoint, _ := mount.GetMountPoint(profileName)
+			mountPoint, _ := mount.GetMountPoint(profileName, profile)
 			notify.Error("Mount Error", fmt.Sprintf("Profile '%s' is already mounted at %s", profileName, mountPoint))
 		} else if strings.Contains(errorMsg, "unreachable") {
 			notify.Error("Mount Error", fmt.Sprintf("Cannot reach %s:%d\n%s", profile.Host, profile.Port, errorMsg))
@@ -68,7 +68,7 @@ func Mount(profileName string, openYazi bool) error {
 		return err
 	}
 
-	mountPoint, err := mount.GetMountPoint(profileName)
+	mountPoint, err := mount.GetMountPoint(profileName, profile)
 	if err != nil {
 		notify.Error("Mount Error", err.Error())
 		return err
@@ -91,7 +91,7 @@ func Mount(profileName string, openYazi bool) error {
 
 		// Auto-unmount when yazi exits
 		fmt.Println("Yazi closed, unmounting...")
-		if err := mount.Unmount(profileName); err != nil {
+		if err := mount.Unmount(profileName, profile); err != nil {
 			notify.Error("Unmount Error", err.Error())
 			return err
 		}
@@ -133,8 +133,21 @@ func Unmount(profileName string, unmountAll bool) error {
 		return nil
 	}
 
+	// Load config to get profile (needed for custom context paths)
+	cfg, err := config.Load()
+	if err != nil {
+		notify.Error("SFTP Sync Error", err.Error())
+		return err
+	}
+
+	profile, err := cfg.GetProfile(profileName)
+	if err != nil {
+		notify.Error("SFTP Sync Error", err.Error())
+		return err
+	}
+
 	// Unmount single profile
-	if err := mount.Unmount(profileName); err != nil {
+	if err := mount.Unmount(profileName, profile); err != nil {
 		notify.Error("Unmount Error", err.Error())
 		return err
 	}
@@ -158,7 +171,8 @@ func Mounts() error {
 
 	fmt.Printf("Currently mounted profiles (%d):\n", len(mounted))
 	for _, profileName := range mounted {
-		mountPoint, err := mount.GetMountPoint(profileName)
+		// Use nil profile to get default mount point
+		mountPoint, err := mount.GetMountPoint(profileName, nil)
 		if err != nil {
 			fmt.Printf("  • %s → (error: %v)\n", profileName, err)
 			continue

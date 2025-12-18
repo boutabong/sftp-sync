@@ -1,0 +1,24 @@
+# Project specific
+CHANGES.md
+
+# Binaries
+sftp-sync
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+
+# Go build cache
+vendor/
+*.out
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store

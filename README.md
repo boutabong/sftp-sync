@@ -181,15 +181,6 @@ window-rule {
 - Blocks until yazi exits
 - Auto-unmounts when closed
 
-## Original Script
-
-This is a complete rewrite of the original Fish shell script, now in Go with enhanced features:
-- Multi-profile support
-- Remote filesystem mounting
-- Yazi integration
-- Better error handling
-- No external JSON parser needed
-
 ## License
 
-Original script by deppes. Rewritten in Go 2025.
+Original Script Rewritten to Go.

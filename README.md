@@ -8,6 +8,7 @@ A powerful FTP/SFTP synchronization and mounting tool written in Go.
 
 - **Bidirectional sync**: Upload and download entire directories from current directory
 - **Single file operations**: Push/pull individual files from current directory
+- **Editor integration**: Smart project root detection for seamless editor workflows
 - **Remote mounting**: Mount FTP/SFTP servers as local filesystems
 - **Yazi integration**: Browse remote files with yazi file manager in a floating window
 - **Multi-profile support**: Manage multiple server configurations
@@ -150,6 +151,25 @@ sftp-sync unmount --all
 # List mounted profiles
 sftp-sync mounts
 ```
+
+### Editor Integration (Helix)
+
+sftp-sync automatically detects project roots when called with absolute file paths, making it perfect for editor integration.
+
+Add to your `~/.config/helix/config.toml`:
+
+```toml
+[keys.normal.space.backspace]
+u = ":run-shell-command sftp-sync up <profile> %{buffer_name}"
+d = ":run-shell-command sftp-sync down <profile> %{buffer_name}"
+c = ":run-shell-command sftp-sync current <profile> %{buffer_name}"
+```
+
+**How it works:**
+- Detects absolute paths from editors (e.g., `/home/user/project/file.html`)
+- Walks up directory tree to find `.git` (project root)
+- Uses project root as context for sync operations
+- Works regardless of where you opened the editor
 
 ### Niri Window Rules
 

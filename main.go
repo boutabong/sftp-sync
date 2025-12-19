@@ -8,7 +8,7 @@ import (
 	"sftp-sync/cmd"
 )
 
-const version = "2.1.1"
+const version = "2.2.0"
 
 func main() {
 	// Linux-only check
@@ -31,28 +31,43 @@ func main() {
 	switch command {
 	case "up":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: sftp-sync up <profile>")
+			fmt.Println("Usage: sftp-sync up <profile> [file]")
 			os.Exit(1)
 		}
-		if err := cmd.Up(os.Args[2]); err != nil {
+		// Optional file argument for editor integration
+		var contextFile string
+		if len(os.Args) >= 4 {
+			contextFile = os.Args[3]
+		}
+		if err := cmd.Up(os.Args[2], contextFile); err != nil {
 			os.Exit(1)
 		}
 
 	case "down":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: sftp-sync down <profile>")
+			fmt.Println("Usage: sftp-sync down <profile> [file]")
 			os.Exit(1)
 		}
-		if err := cmd.Down(os.Args[2]); err != nil {
+		// Optional file argument for editor integration
+		var contextFile string
+		if len(os.Args) >= 4 {
+			contextFile = os.Args[3]
+		}
+		if err := cmd.Down(os.Args[2], contextFile); err != nil {
 			os.Exit(1)
 		}
 
 	case "diff":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: sftp-sync diff <profile>")
+			fmt.Println("Usage: sftp-sync diff <profile> [file]")
 			os.Exit(1)
 		}
-		if err := cmd.Diff(os.Args[2]); err != nil {
+		// Optional file argument for editor integration
+		var contextFile string
+		if len(os.Args) >= 4 {
+			contextFile = os.Args[3]
+		}
+		if err := cmd.Diff(os.Args[2], contextFile); err != nil {
 			os.Exit(1)
 		}
 

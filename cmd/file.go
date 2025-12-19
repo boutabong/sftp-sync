@@ -11,6 +11,47 @@ import (
 	"sftp-sync/internal/notify"
 )
 
+// findProjectRoot determines the appropriate context directory for a file operation
+// For absolute paths: walks up to find .git directory (project root)
+// For relative paths: uses current working directory
+func findProjectRoot(filePath string) (string, error) {
+	// If path is relative, use cwd
+	if !filepath.IsAbs(filePath) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("cannot determine current directory: %w", err)
+		}
+		return cwd, nil
+	}
+
+	// For absolute paths (editor scenario), find project root
+	dir := filepath.Dir(filePath)
+	homeDir, _ := os.UserHomeDir()
+
+	// Walk up the directory tree looking for .git
+	for {
+		gitPath := filepath.Join(dir, ".git")
+		if _, err := os.Stat(gitPath); err == nil {
+			// Found .git directory - this is the project root
+			return dir, nil
+		}
+
+		// Stop at home directory or root
+		if dir == homeDir || dir == "/" {
+			// No .git found, use file's directory as fallback
+			return filepath.Dir(filePath), nil
+		}
+
+		// Move up one directory
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached filesystem root
+			return filepath.Dir(filePath), nil
+		}
+		dir = parent
+	}
+}
+
 // Push uploads a single file
 func Push(profileName, filePath string) error {
 	// Check dependencies
@@ -33,21 +74,21 @@ func Push(profileName, filePath string) error {
 		return err
 	}
 
-	// Get current working directory
-	cwd, err := os.Getwd()
+	// Smart context detection: use project root for absolute paths, cwd for relative
+	contextDir, err := findProjectRoot(filePath)
 	if err != nil {
-		notify.Error("SFTP Error", "Cannot determine current directory")
-		return fmt.Errorf("cannot determine current directory")
+		notify.Error("SFTP Error", "Cannot determine context directory")
+		return err
 	}
 
-	// Override profile context with cwd
-	profile.Context = cwd
+	// Override profile context with detected context
+	profile.Context = contextDir
 
 	// Get relative path for display
 	relPath := filepath.Base(filePath)
 	absFile, err := filepath.Abs(filePath)
 	if err == nil {
-		if rel, err := filepath.Rel(cwd, absFile); err == nil {
+		if rel, err := filepath.Rel(contextDir, absFile); err == nil {
 			relPath = rel
 		}
 	}
@@ -87,15 +128,15 @@ func Pull(profileName, filePath string) error {
 		return err
 	}
 
-	// Get current working directory
-	cwd, err := os.Getwd()
+	// Smart context detection: use project root for absolute paths, cwd for relative
+	contextDir, err := findProjectRoot(filePath)
 	if err != nil {
-		notify.Error("SFTP Error", "Cannot determine current directory")
-		return fmt.Errorf("cannot determine current directory")
+		notify.Error("SFTP Error", "Cannot determine context directory")
+		return err
 	}
 
-	// Override profile context with cwd
-	profile.Context = cwd
+	// Override profile context with detected context
+	profile.Context = contextDir
 
 	// Get relative path for display
 	relPath := filepath.Base(filePath)

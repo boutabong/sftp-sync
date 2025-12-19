@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"sftp-sync/internal/config"
 	"sftp-sync/internal/deps"
@@ -10,8 +11,45 @@ import (
 	"sftp-sync/internal/notify"
 )
 
+// getContext determines the context directory
+// If contextFile is provided and absolute, finds project root
+// Otherwise uses cwd
+func getContext(contextFile string) (string, error) {
+	if contextFile == "" {
+		// No file provided, use cwd
+		return os.Getwd()
+	}
+
+	// File provided - use smart detection (same logic as findProjectRoot)
+	if !filepath.IsAbs(contextFile) {
+		// Relative path, use cwd
+		return os.Getwd()
+	}
+
+	// Absolute path - find project root
+	dir := filepath.Dir(contextFile)
+	homeDir, _ := os.UserHomeDir()
+
+	for {
+		gitPath := filepath.Join(dir, ".git")
+		if _, err := os.Stat(gitPath); err == nil {
+			return dir, nil
+		}
+
+		if dir == homeDir || dir == "/" {
+			return filepath.Dir(contextFile), nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return filepath.Dir(contextFile), nil
+		}
+		dir = parent
+	}
+}
+
 // Up performs full upload sync
-func Up(profileName string) error {
+func Up(profileName, contextFile string) error {
 	// Check dependencies
 	if err := deps.CheckRequired("lftp", "notify-send"); err != nil {
 		notify.Error("SFTP Sync Error", err.Error())
@@ -32,18 +70,18 @@ func Up(profileName string) error {
 		return err
 	}
 
-	// Get current working directory
-	cwd, err := os.Getwd()
+	// Get context directory (smart detection for editor integration)
+	contextDir, err := getContext(contextFile)
 	if err != nil {
-		msg := "Cannot determine current directory"
+		msg := "Cannot determine context directory"
 		notify.Error("SFTP Error", msg)
 		return fmt.Errorf(msg)
 	}
 
-	// Override profile context with cwd
-	profile.Context = cwd
+	// Override profile context with detected context
+	profile.Context = contextDir
 
-	fmt.Fprintf(os.Stderr, "Debug: Uploading from '%s' to '%s' on %s\n", cwd, profile.RemotePath, profile.Host)
+	fmt.Fprintf(os.Stderr, "Debug: Uploading from '%s' to '%s' on %s\n", contextDir, profile.RemotePath, profile.Host)
 	notify.Info("SFTP Sync", fmt.Sprintf("Uploading to %s...", profile.Host))
 
 	// Perform sync
@@ -75,7 +113,7 @@ func Up(profileName string) error {
 }
 
 // Down performs full download sync
-func Down(profileName string) error {
+func Down(profileName, contextFile string) error {
 	// Check dependencies
 	if err := deps.CheckRequired("lftp", "notify-send"); err != nil {
 		notify.Error("SFTP Sync Error", err.Error())
@@ -96,18 +134,18 @@ func Down(profileName string) error {
 		return err
 	}
 
-	// Get current working directory
-	cwd, err := os.Getwd()
+	// Get context directory (smart detection for editor integration)
+	contextDir, err := getContext(contextFile)
 	if err != nil {
-		msg := "Cannot determine current directory"
+		msg := "Cannot determine context directory"
 		notify.Error("SFTP Error", msg)
 		return fmt.Errorf(msg)
 	}
 
-	// Override profile context with cwd
-	profile.Context = cwd
+	// Override profile context with detected context
+	profile.Context = contextDir
 
-	fmt.Fprintf(os.Stderr, "Debug: Downloading from '%s' on %s to '%s'\n", profile.RemotePath, profile.Host, cwd)
+	fmt.Fprintf(os.Stderr, "Debug: Downloading from '%s' on %s to '%s'\n", profile.RemotePath, profile.Host, contextDir)
 	notify.Info("SFTP Sync", fmt.Sprintf("Downloading from %s...", profile.Host))
 
 	// Perform sync
@@ -139,7 +177,7 @@ func Down(profileName string) error {
 }
 
 // Diff shows what would be uploaded (dry-run)
-func Diff(profileName string) error {
+func Diff(profileName, contextFile string) error {
 	// Check dependencies
 	if err := deps.CheckRequired("lftp", "notify-send"); err != nil {
 		notify.Error("SFTP Sync Error", err.Error())
@@ -160,15 +198,15 @@ func Diff(profileName string) error {
 		return err
 	}
 
-	// Get current working directory
-	cwd, err := os.Getwd()
+	// Get context directory (smart detection for editor integration)
+	contextDir, err := getContext(contextFile)
 	if err != nil {
-		notify.Error("SFTP Error", "Cannot determine current directory")
-		return fmt.Errorf("cannot determine current directory")
+		notify.Error("SFTP Error", "Cannot determine context directory")
+		return fmt.Errorf("cannot determine context directory")
 	}
 
-	// Override profile context with cwd
-	profile.Context = cwd
+	// Override profile context with detected context
+	profile.Context = contextDir
 
 	notify.Info("SFTP Sync", "Comparing local vs remote...")
 

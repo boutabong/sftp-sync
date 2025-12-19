@@ -36,7 +36,7 @@ func buildCommand(profile *config.Profile, ftpCommand string) *exec.Cmd {
 	if profile.Protocol == "sftp" && profile.SSHKey != "" {
 		// Use SSH key authentication
 		sshCmd := fmt.Sprintf("ssh -a -x -i %s", profile.SSHKey)
-		settings = fmt.Sprintf("set sftp:connect-program '%s'; set ftp:ssl-allow no; %s", sshCmd, ftpCommand)
+		settings = fmt.Sprintf("set sftp:connect-program '%s'; set ftp:ssl-allow no; set ssl:verify-certificate no; %s", sshCmd, ftpCommand)
 
 		// For SSH key auth, use empty password to prevent password prompt
 		credentials := profile.Username + ","
@@ -51,7 +51,7 @@ func buildCommand(profile *config.Profile, ftpCommand string) *exec.Cmd {
 
 	// Default: password authentication
 	credentials := fmt.Sprintf("%s,%s", profile.Username, profile.Password)
-	settings = fmt.Sprintf("set ftp:ssl-allow no; %s", ftpCommand)
+	settings = fmt.Sprintf("set ftp:ssl-allow no; set ssl:verify-certificate no; %s", ftpCommand)
 
 	args := []string{
 		"-e", settings + "; quit",

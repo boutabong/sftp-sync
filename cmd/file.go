@@ -12,9 +12,14 @@ import (
 )
 
 // findProjectRoot determines the appropriate context directory for a file operation
-// For absolute paths: walks up to find .git directory (project root)
-// For relative paths: uses current working directory
-func findProjectRoot(filePath string) (string, error) {
+// Priority: 1) Config context (if set), 2) Detect from .git, 3) Current working directory
+func findProjectRoot(profile *config.Profile, filePath string) (string, error) {
+	// If context is explicitly set in config, use it
+	if profile.Context != "" {
+		return profile.Context, nil
+	}
+
+	// No context in config - try to detect it
 	// If path is relative, use cwd
 	if !filepath.IsAbs(filePath) {
 		cwd, err := os.Getwd()
@@ -38,15 +43,15 @@ func findProjectRoot(filePath string) (string, error) {
 
 		// Stop at home directory or root
 		if dir == homeDir || dir == "/" {
-			// No .git found, use file's directory as fallback
-			return filepath.Dir(filePath), nil
+			// No .git found - return error instead of guessing
+			return "", fmt.Errorf("no project root found (no .git directory). Please set 'context' in config for profile")
 		}
 
 		// Move up one directory
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			// Reached filesystem root
-			return filepath.Dir(filePath), nil
+			return "", fmt.Errorf("no project root found (filesystem root reached). Please set 'context' in config for profile")
 		}
 		dir = parent
 	}
@@ -74,15 +79,17 @@ func Push(profileName, filePath string) error {
 		return err
 	}
 
-	// Smart context detection: use project root for absolute paths, cwd for relative
-	contextDir, err := findProjectRoot(filePath)
+	// Smart context detection: respects config, falls back to .git detection
+	contextDir, err := findProjectRoot(profile, filePath)
 	if err != nil {
-		notify.Error("SFTP Error", "Cannot determine context directory")
+		notify.Error("SFTP Error", err.Error())
 		return err
 	}
 
-	// Override profile context with detected context
-	profile.Context = contextDir
+	// Set the resolved context (only if it wasn't already set from config)
+	if profile.Context == "" {
+		profile.Context = contextDir
+	}
 
 	// Get relative path for display
 	relPath := filepath.Base(filePath)
@@ -128,15 +135,17 @@ func Pull(profileName, filePath string) error {
 		return err
 	}
 
-	// Smart context detection: use project root for absolute paths, cwd for relative
-	contextDir, err := findProjectRoot(filePath)
+	// Smart context detection: respects config, falls back to .git detection
+	contextDir, err := findProjectRoot(profile, filePath)
 	if err != nil {
-		notify.Error("SFTP Error", "Cannot determine context directory")
+		notify.Error("SFTP Error", err.Error())
 		return err
 	}
 
-	// Override profile context with detected context
-	profile.Context = contextDir
+	// Set the resolved context (only if it wasn't already set from config)
+	if profile.Context == "" {
+		profile.Context = contextDir
+	}
 
 	// Get relative path for display
 	relPath := filepath.Base(filePath)

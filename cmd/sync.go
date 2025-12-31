@@ -12,21 +12,26 @@ import (
 )
 
 // getContext determines the context directory
-// If contextFile is provided and absolute, finds project root
-// Otherwise uses cwd
-func getContext(contextFile string) (string, error) {
+// Priority: 1) Config context (if set), 2) Detect from .git, 3) Current working directory
+func getContext(profile *config.Profile, contextFile string) (string, error) {
+	// If context is explicitly set in config, use it
+	if profile.Context != "" {
+		return profile.Context, nil
+	}
+
+	// No context in config - try to detect it
 	if contextFile == "" {
 		// No file provided, use cwd
 		return os.Getwd()
 	}
 
-	// File provided - use smart detection (same logic as findProjectRoot)
+	// File provided - use smart detection
 	if !filepath.IsAbs(contextFile) {
 		// Relative path, use cwd
 		return os.Getwd()
 	}
 
-	// Absolute path - find project root
+	// Absolute path - find project root by looking for .git
 	dir := filepath.Dir(contextFile)
 	homeDir, _ := os.UserHomeDir()
 
@@ -37,12 +42,13 @@ func getContext(contextFile string) (string, error) {
 		}
 
 		if dir == homeDir || dir == "/" {
-			return filepath.Dir(contextFile), nil
+			// No .git found - return error instead of guessing
+			return "", fmt.Errorf("no project root found (no .git directory). Please set 'context' in config for profile")
 		}
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return filepath.Dir(contextFile), nil
+			return "", fmt.Errorf("no project root found (filesystem root reached). Please set 'context' in config for profile")
 		}
 		dir = parent
 	}
@@ -70,18 +76,19 @@ func Up(profileName, contextFile string) error {
 		return err
 	}
 
-	// Get context directory (smart detection for editor integration)
-	contextDir, err := getContext(contextFile)
+	// Get context directory (respects config, falls back to smart detection)
+	contextDir, err := getContext(profile, contextFile)
 	if err != nil {
-		msg := "Cannot determine context directory"
-		notify.Error("SFTP Error", msg)
-		return fmt.Errorf(msg)
+		notify.Error("SFTP Error", err.Error())
+		return err
 	}
 
-	// Override profile context with detected context
-	profile.Context = contextDir
+	// Set the resolved context (only if it wasn't already set from config)
+	if profile.Context == "" {
+		profile.Context = contextDir
+	}
 
-	fmt.Fprintf(os.Stderr, "Debug: Uploading from '%s' to '%s' on %s\n", contextDir, profile.RemotePath, profile.Host)
+	fmt.Fprintf(os.Stderr, "Debug: Uploading from '%s' to '%s' on %s\n", profile.Context, profile.RemotePath, profile.Host)
 	notify.Info("SFTP Sync", fmt.Sprintf("Uploading to %s...", profile.Host))
 
 	// Perform sync
@@ -134,18 +141,19 @@ func Down(profileName, contextFile string) error {
 		return err
 	}
 
-	// Get context directory (smart detection for editor integration)
-	contextDir, err := getContext(contextFile)
+	// Get context directory (respects config, falls back to smart detection)
+	contextDir, err := getContext(profile, contextFile)
 	if err != nil {
-		msg := "Cannot determine context directory"
-		notify.Error("SFTP Error", msg)
-		return fmt.Errorf(msg)
+		notify.Error("SFTP Error", err.Error())
+		return err
 	}
 
-	// Override profile context with detected context
-	profile.Context = contextDir
+	// Set the resolved context (only if it wasn't already set from config)
+	if profile.Context == "" {
+		profile.Context = contextDir
+	}
 
-	fmt.Fprintf(os.Stderr, "Debug: Downloading from '%s' on %s to '%s'\n", profile.RemotePath, profile.Host, contextDir)
+	fmt.Fprintf(os.Stderr, "Debug: Downloading from '%s' on %s to '%s'\n", profile.RemotePath, profile.Host, profile.Context)
 	notify.Info("SFTP Sync", fmt.Sprintf("Downloading from %s...", profile.Host))
 
 	// Perform sync
@@ -198,15 +206,17 @@ func Diff(profileName, contextFile string) error {
 		return err
 	}
 
-	// Get context directory (smart detection for editor integration)
-	contextDir, err := getContext(contextFile)
+	// Get context directory (respects config, falls back to smart detection)
+	contextDir, err := getContext(profile, contextFile)
 	if err != nil {
-		notify.Error("SFTP Error", "Cannot determine context directory")
-		return fmt.Errorf("cannot determine context directory")
+		notify.Error("SFTP Error", err.Error())
+		return err
 	}
 
-	// Override profile context with detected context
-	profile.Context = contextDir
+	// Set the resolved context (only if it wasn't already set from config)
+	if profile.Context == "" {
+		profile.Context = contextDir
+	}
 
 	notify.Info("SFTP Sync", "Comparing local vs remote...")
 

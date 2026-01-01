@@ -8,6 +8,7 @@ import (
 
 	"sftp-sync/internal/config"
 	"sftp-sync/internal/deps"
+	"sftp-sync/internal/notify"
 	"sftp-sync/internal/watcher"
 )
 
@@ -31,6 +32,30 @@ func Daemon() error {
 	}
 	defer w.Close()
 
+	// Build profiles map for queue
+	profiles := make(map[string]*config.Profile)
+	for name, profile := range cfg.Profiles {
+		p := profile
+		profiles[name] = &p
+	}
+
+	// Create upload queue
+	queue := watcher.NewUploadQueue(profiles)
+
+	// Start queue processor
+	queue.Start(
+		// On success
+		func(profileName, relPath string) {
+			fmt.Fprintf(os.Stderr, "✓ Uploaded: %s → %s\n", relPath, profileName)
+			notify.Success("Auto-synced", fmt.Sprintf("%s → %s", relPath, profileName))
+		},
+		// On error
+		func(profileName, relPath string, err error, failCount int) {
+			fmt.Fprintf(os.Stderr, "✗ Upload failed after %d attempts: %s → %s (%v)\n", failCount, relPath, profileName, err)
+			notify.Error("Auto-sync failed", fmt.Sprintf("%s → %s\n%v", relPath, profileName, err))
+		},
+	)
+
 	// Find and watch all profiles with autoSync enabled
 	watchedCount := 0
 	for name, profile := range cfg.Profiles {
@@ -49,8 +74,8 @@ func Daemon() error {
 
 		// Watch this profile
 		err := w.Watch(name, &p, func(filePath string) {
-			fmt.Fprintf(os.Stderr, "Change detected: %s (profile: %s)\n", filePath, name)
-			// TODO: Upload will be implemented in Phase 3
+			// Enqueue upload
+			queue.Enqueue(name, filePath)
 		})
 
 		if err != nil {
@@ -76,5 +101,6 @@ func Daemon() error {
 	<-sigChan
 
 	fmt.Fprintf(os.Stderr, "\nDaemon stopping...\n")
+	queue.Stop()
 	return nil
 }

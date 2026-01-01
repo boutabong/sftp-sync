@@ -8,7 +8,6 @@ import (
 
 	"sftp-sync/internal/config"
 	"sftp-sync/internal/deps"
-	"sftp-sync/internal/notify"
 	"sftp-sync/internal/watcher"
 )
 
@@ -42,17 +41,21 @@ func Daemon() error {
 	// Create upload queue
 	queue := watcher.NewUploadQueue(profiles)
 
+	// Create notifier with batching
+	notifier := watcher.NewNotifier()
+
 	// Start queue processor
 	queue.Start(
 		// On success
 		func(profileName, relPath string) {
 			fmt.Fprintf(os.Stderr, "✓ Uploaded: %s → %s\n", relPath, profileName)
-			notify.Success("Auto-synced", fmt.Sprintf("%s → %s", relPath, profileName))
+			notifier.ResetErrorCount(profileName)
+			notifier.NotifySuccess(profileName, relPath)
 		},
 		// On error
 		func(profileName, relPath string, err error, failCount int) {
 			fmt.Fprintf(os.Stderr, "✗ Upload failed after %d attempts: %s → %s (%v)\n", failCount, relPath, profileName, err)
-			notify.Error("Auto-sync failed", fmt.Sprintf("%s → %s\n%v", relPath, profileName, err))
+			notifier.NotifyError(profileName, relPath, err)
 		},
 	)
 

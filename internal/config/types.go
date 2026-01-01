@@ -2,14 +2,16 @@ package config
 
 // Profile represents a single server configuration
 type Profile struct {
-	Host       string `json:"host"`
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	SSHKey     string `json:"sshKey"`
-	Port       int    `json:"port"`
-	Protocol   string `json:"protocol"`
-	RemotePath string `json:"remotePath"`
-	Context    string `json:"context"`
+	Host              string `json:"host"`
+	Username          string `json:"username"`
+	Password          string `json:"password"`
+	SSHKey            string `json:"sshKey"`
+	Port              int    `json:"port"`
+	Protocol          string `json:"protocol"`
+	RemotePath        string `json:"remotePath"`
+	Context           string `json:"context"`
+	AutoSync          bool   `json:"autoSync"`
+	AutoSyncDebounce  int    `json:"autoSyncDebounce"` // milliseconds
 }
 
 // Config represents the entire configuration file

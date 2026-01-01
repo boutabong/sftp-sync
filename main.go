@@ -132,6 +132,12 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "daemon":
+		if err := cmd.Daemon(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		fmt.Printf("sftp-sync version %s\n", version)
 

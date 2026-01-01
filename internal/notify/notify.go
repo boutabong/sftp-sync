@@ -21,7 +21,7 @@ func Send(title, message string, urgency Urgency) error {
 
 // Success sends a success notification
 func Success(title, message string) error {
-	return Send("✓ "+title, message, UrgencyNormal)
+	return Send("✓ "+title, message, UrgencyCritical)
 }
 
 // Error sends an error notification

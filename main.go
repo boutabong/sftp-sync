@@ -8,7 +8,7 @@ import (
 	"sftp-sync/cmd"
 )
 
-const version = "2.2.0"
+const version = "2.3.0"
 
 func main() {
 	// Linux-only check

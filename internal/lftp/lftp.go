@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"sftp-sync/internal/config"
+	"sftp-sync/internal/syncignore"
 )
 
 // Result represents the outcome of an lftp operation
@@ -71,7 +72,20 @@ func SyncUp(profile *config.Profile) (*Result, error) {
 		return nil, fmt.Errorf("cannot resolve local path: %w", err)
 	}
 
-	ftpCmd := fmt.Sprintf("mirror -R --verbose --delete '%s' '%s'", absLocal, profile.RemotePath)
+	// Load .syncignore patterns
+	patterns, err := syncignore.Load(absLocal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load .syncignore: %w", err)
+	}
+
+	// Build exclude flags
+	excludeFlags := syncignore.BuildExcludeFlags(patterns)
+	excludeStr := ""
+	if len(excludeFlags) > 0 {
+		excludeStr = " " + strings.Join(excludeFlags, " ")
+	}
+
+	ftpCmd := fmt.Sprintf("mirror -R --verbose --delete%s '%s' '%s'", excludeStr, absLocal, profile.RemotePath)
 	cmd := buildCommand(profile, ftpCmd)
 
 	output, err := cmd.CombinedOutput()
@@ -86,7 +100,20 @@ func SyncDown(profile *config.Profile) (*Result, error) {
 		return nil, fmt.Errorf("cannot resolve local path: %w", err)
 	}
 
-	ftpCmd := fmt.Sprintf("mirror --verbose --delete '%s' '%s'", profile.RemotePath, absLocal)
+	// Load .syncignore patterns
+	patterns, err := syncignore.Load(absLocal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load .syncignore: %w", err)
+	}
+
+	// Build exclude flags
+	excludeFlags := syncignore.BuildExcludeFlags(patterns)
+	excludeStr := ""
+	if len(excludeFlags) > 0 {
+		excludeStr = " " + strings.Join(excludeFlags, " ")
+	}
+
+	ftpCmd := fmt.Sprintf("mirror --verbose --delete%s '%s' '%s'", excludeStr, profile.RemotePath, absLocal)
 	cmd := buildCommand(profile, ftpCmd)
 
 	output, err := cmd.CombinedOutput()
@@ -95,7 +122,20 @@ func SyncDown(profile *config.Profile) (*Result, error) {
 
 // Diff shows what would be uploaded (dry-run)
 func Diff(profile *config.Profile) error {
-	ftpCmd := fmt.Sprintf("mirror -R --dry-run --verbose '%s' '%s'", profile.Context, profile.RemotePath)
+	// Load .syncignore patterns
+	patterns, err := syncignore.Load(profile.Context)
+	if err != nil {
+		return fmt.Errorf("failed to load .syncignore: %w", err)
+	}
+
+	// Build exclude flags
+	excludeFlags := syncignore.BuildExcludeFlags(patterns)
+	excludeStr := ""
+	if len(excludeFlags) > 0 {
+		excludeStr = " " + strings.Join(excludeFlags, " ")
+	}
+
+	ftpCmd := fmt.Sprintf("mirror -R --dry-run --verbose%s '%s' '%s'", excludeStr, profile.Context, profile.RemotePath)
 	cmd := buildCommand(profile, ftpCmd)
 
 	cmd.Stdout = nil // Output goes directly to terminal
@@ -124,6 +164,17 @@ func PushFile(profile *config.Profile, filePath string) error {
 
 	// Calculate relative path and remote file location
 	relPath := strings.TrimPrefix(absFile, absLocal+"/")
+
+	// Load .syncignore and check if file should be ignored
+	patterns, err := syncignore.Load(absLocal)
+	if err != nil {
+		return fmt.Errorf("failed to load .syncignore: %w", err)
+	}
+
+	if syncignore.ShouldIgnore(relPath, patterns) {
+		return fmt.Errorf("file ignored by .syncignore: %s", relPath)
+	}
+
 	remoteFile := filepath.Join(profile.RemotePath, relPath)
 	remoteDir := filepath.Dir(remoteFile)
 
@@ -164,6 +215,17 @@ func PullFile(profile *config.Profile, filePath string) error {
 
 	// Calculate relative path and remote file location
 	relPath := strings.TrimPrefix(absFile, absLocal+"/")
+
+	// Load .syncignore and check if file should be ignored
+	patterns, err := syncignore.Load(absLocal)
+	if err != nil {
+		return fmt.Errorf("failed to load .syncignore: %w", err)
+	}
+
+	if syncignore.ShouldIgnore(relPath, patterns) {
+		return fmt.Errorf("file ignored by .syncignore: %s", relPath)
+	}
+
 	remoteFile := filepath.Join(profile.RemotePath, relPath)
 
 	ftpCmd := fmt.Sprintf("get '%s' -o '%s'", remoteFile, absFile)

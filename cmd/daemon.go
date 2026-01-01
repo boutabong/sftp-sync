@@ -125,10 +125,15 @@ func Daemon() error {
 							return
 						}
 
-						// Config file changed
-						if event.Op&fsnotify.Write == fsnotify.Write {
+						// Config file changed (handle both WRITE and CREATE for atomic replacements)
+						if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
 							fmt.Fprintf(os.Stderr, "Config file changed, reloading...\n")
 							handleConfigReload(w, profiles, queue)
+						}
+
+						// Re-add watch if file was removed (atomic replacement)
+						if event.Op&fsnotify.Remove == fsnotify.Remove {
+							configWatcher.Add(configPath)
 						}
 
 					case err, ok := <-configWatcher.Errors:

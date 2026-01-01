@@ -138,6 +138,18 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "install-daemon":
+		if err := cmd.InstallDaemon(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "uninstall-daemon":
+		if err := cmd.UninstallDaemon(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "version", "--version", "-v":
 		fmt.Printf("sftp-sync version %s\n", version)
 
@@ -172,6 +184,11 @@ MOUNT COMMANDS:
   unmount --all             Unmount all mounted filesystems
   mounts                    List currently mounted profiles
 
+DAEMON COMMANDS:
+  daemon                    Run auto-sync daemon (watches for file changes)
+  install-daemon            Install systemd service for auto-sync
+  uninstall-daemon          Remove systemd service
+
 OTHER:
   version                   Show version information
   help                      Show this help message
@@ -188,7 +205,9 @@ CONFIGURATION:
       "port": 21,
       "protocol": "ftp",
       "remotePath": "/public_html",
-      "context": "/home/user/projects/website"
+      "context": "/home/user/projects/website",
+      "autoSync": true,
+      "autoSyncDebounce": 2000
     }
   }
 

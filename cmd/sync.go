@@ -88,7 +88,6 @@ func Up(profileName, contextFile string) error {
 		profile.Context = contextDir
 	}
 
-	fmt.Fprintf(os.Stderr, "Debug: Uploading from '%s' to '%s' on %s\n", profile.Context, profile.RemotePath, profile.Host)
 	notify.Info("SFTP Sync", fmt.Sprintf("Uploading to %s...", profile.Host))
 
 	// Perform sync
@@ -153,7 +152,6 @@ func Down(profileName, contextFile string) error {
 		profile.Context = contextDir
 	}
 
-	fmt.Fprintf(os.Stderr, "Debug: Downloading from '%s' on %s to '%s'\n", profile.RemotePath, profile.Host, profile.Context)
 	notify.Info("SFTP Sync", fmt.Sprintf("Downloading from %s...", profile.Host))
 
 	// Perform sync

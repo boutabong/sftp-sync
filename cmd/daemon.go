@@ -173,6 +173,10 @@ func handleConfigReload(w *watcher.Watcher, profiles map[string]*config.Profile,
 		newProfiles[name] = &p
 	}
 
+	// Lock profiles map for writing during reload
+	queue.LockProfiles()
+	defer queue.UnlockProfiles()
+
 	// Compare old vs new profiles
 	// 1. Stop watching profiles that were removed or have autoSync disabled
 	for oldName, oldProfile := range profiles {

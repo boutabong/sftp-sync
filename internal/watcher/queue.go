@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"sftp-sync/internal/config"
@@ -14,8 +15,9 @@ import (
 
 // UploadQueue manages sequential file uploads with retry logic
 type UploadQueue struct {
-	queue   chan *uploadTask
-	profiles map[string]*config.Profile
+	queue      chan *uploadTask
+	profiles   map[string]*config.Profile
+	profilesMu sync.RWMutex
 }
 
 type uploadTask struct {
@@ -33,6 +35,14 @@ func NewUploadQueue(profiles map[string]*config.Profile) *UploadQueue {
 
 // Enqueue adds a file to the upload queue
 func (q *UploadQueue) Enqueue(profileName, filePath string) {
+	// Warn if queue is getting full (80% capacity)
+	queueLen := len(q.queue)
+	queueCap := cap(q.queue)
+	if queueLen >= int(float64(queueCap)*0.8) {
+		fmt.Fprintf(os.Stderr, "Warning: Upload queue is %d%% full (%d/%d)\n",
+			(queueLen*100)/queueCap, queueLen, queueCap)
+	}
+
 	q.queue <- &uploadTask{
 		profileName: profileName,
 		filePath:    filePath,
@@ -50,7 +60,11 @@ func (q *UploadQueue) Start(onSuccess func(profileName, filePath string), onErro
 
 // processUpload handles uploading a single file with retry logic
 func (q *UploadQueue) processUpload(task *uploadTask, onSuccess func(string, string), onError func(string, string, error, int)) {
+	// Lock for reading profile
+	q.profilesMu.RLock()
 	profile, exists := q.profiles[task.profileName]
+	q.profilesMu.RUnlock()
+
 	if !exists {
 		fmt.Fprintf(os.Stderr, "Error: Profile '%s' not found\n", task.profileName)
 		return
@@ -122,4 +136,14 @@ func (q *UploadQueue) processUpload(task *uploadTask, onSuccess func(string, str
 // Stop stops the queue processor
 func (q *UploadQueue) Stop() {
 	close(q.queue)
+}
+
+// LockProfiles locks the profiles map for writing
+func (q *UploadQueue) LockProfiles() {
+	q.profilesMu.Lock()
+}
+
+// UnlockProfiles unlocks the profiles map after writing
+func (q *UploadQueue) UnlockProfiles() {
+	q.profilesMu.Unlock()
 }

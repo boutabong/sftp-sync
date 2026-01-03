@@ -1,179 +1,276 @@
 # SFTP-Sync
 
-A powerful FTP/SFTP synchronization and mounting tool written in Go.
+A fast, powerful FTP/SFTP synchronization and mounting tool written in Go. Think of it as rsync for remote servers, but with auto-sync capabilities, desktop notifications, and filesystem mounting built in.
 
 **Platform:** Linux only (requires FUSE and libnotify)
+**Version:** 2.3.1
 
-## Features
+## Why SFTP-Sync?
 
-- **Bidirectional sync**: Upload and download entire directories from current directory
-- **Single file operations**: Push/pull individual files from current directory
-- **Editor integration**: Smart project root detection for seamless editor workflows
-- **Remote mounting**: Mount FTP/SFTP servers as local filesystems
-- **Yazi integration**: Browse remote files with yazi file manager in a floating window
-- **Multi-profile support**: Manage multiple server configurations
-- **Desktop notifications**: Get notified of sync status
-- **Smart error handling**: Detailed error messages and recovery
+- **Bidirectional sync** - Upload/download entire directories with one command
+- **Auto-sync daemon** - Watches your files and uploads changes automatically
+- **Remote mounting** - Browse remote servers like local folders
+- **Editor integration** - Smart project detection works seamlessly with any editor
+- **Desktop notifications** - Never wonder if your sync worked
+- **Multi-profile** - Manage multiple servers effortlessly
+- **.syncignore support** - Exclude files from auto-sync (like .gitignore)
+- **Yazi integration** - Browse remote files in a floating window
 
 ## Installation
 
-### Build from source
+### Build from Source
 
 ```bash
-cd sftp-sync-go
+cd sftp-sync
 go build -o sftp-sync
 sudo mv sftp-sync /usr/local/bin/
 ```
 
 ### Dependencies
 
-**Core Requirements (always needed):**
-- `lftp` - FTP/SFTP client for sync operations
-- `notify-send` - Desktop notifications (libnotify package)
+**Always Required:**
+- `lftp` - The actual sync engine
+- `notify-send` - Desktop notifications (from libnotify)
 
-**Protocol-Specific (needed for mounting):**
-- `sshfs` - Required for SFTP mounting
-- `rclone` - Required for FTP mounting
+**For Mounting:**
+- `sshfs` - SFTP mounting
+- `rclone` - FTP mounting
 
-**Optional (only for --yazi feature):**
-- `kitty` - Terminal emulator (required for --yazi flag)
-- `yazi` - File manager (required for --yazi flag)
+**Optional (for --yazi feature):**
+- `kitty` - Terminal emulator
+- `yazi` - File manager
 
-**Installation example (Arch Linux):**
+**Install on Arch Linux:**
 ```bash
-# Core dependencies
+# Core
 sudo pacman -S lftp libnotify
 
-# For SFTP mounting
-sudo pacman -S sshfs
+# For mounting
+sudo pacman -S sshfs rclone
 
-# For FTP mounting
-sudo pacman -S rclone
-
-# Optional: for --yazi feature
+# Optional: for --yazi
 sudo pacman -S kitty yazi
 ```
 
 ## Configuration
 
-Create config file at `~/.config/sftp-sync/config.json`:
+Config lives at `~/.config/sftp-sync/config.json`
+
+### Basic Example
 
 ```json
 {
   "myserver": {
-    "host": "ftp.example.com",
-    "username": "user",
-    "password": "password",
-    "port": 21,
-    "protocol": "ftp",
-    "remotePath": "/public_html"
-  },
-  "webserver": {
     "host": "example.com",
     "username": "user",
     "password": "password",
     "port": 22,
     "protocol": "sftp",
     "remotePath": "/var/www/html"
-  },
-  "sshkey-server": {
+  }
+}
+```
+
+### SSH Key Authentication (Recommended)
+
+```json
+{
+  "webserver": {
     "host": "example.com",
     "username": "user",
     "sshKey": "/home/user/.ssh/id_rsa",
     "port": 22,
     "protocol": "sftp",
-    "remotePath": "/var/www/html",
-    "context": "/home/user/.mounted/myserver"
+    "remotePath": "/var/www/html"
   }
 }
 ```
 
-### Config Fields
+### Auto-Sync Daemon Configuration
 
-- `host` (required) - Server hostname or IP
-- `username` (required) - Login username
-- `password` (optional for SFTP with SSH key, required for FTP) - Login password
-- `sshKey` (optional) - Path to SSH private key file (for SFTP only)
-- `port` (optional) - Port number (default: 21 for FTP, 22 for SFTP)
-- `protocol` (optional) - "ftp" or "sftp" (default: "ftp")
-- `remotePath` (optional) - Remote directory path (default: "/")
-- `context` (optional) - Custom mount point directory (default: `~/.mounted/<profile-name>`)
+Want files to upload automatically when you save them? Add `autoSync: true`:
 
-**Note for SFTP:** You can use either `password` or `sshKey` for authentication. If both are provided, `sshKey` will be preferred.
+```json
+{
+  "myproject": {
+    "host": "example.com",
+    "username": "user",
+    "sshKey": "/home/user/.ssh/id_rsa",
+    "protocol": "sftp",
+    "remotePath": "/var/www/html",
+    "context": "/home/user/projects/myproject",
+    "autoSync": true,
+    "autoSyncDebounce": 2000
+  }
+}
+```
 
-**Note on context:** The `context` field is only used for mount operations. Sync commands (`up`, `down`, `push`, `pull`) always operate on your current working directory.
+### All Configuration Options
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `host` | **Yes** | - | Server hostname or IP address |
+| `username` | **Yes** | - | Login username |
+| `password` | No* | - | Login password (see security note below) |
+| `sshKey` | No* | - | Path to SSH private key (SFTP only) |
+| `port` | No | 21 (FTP)<br>22 (SFTP) | Port number |
+| `protocol` | No | `"ftp"` | `"ftp"` or `"sftp"` |
+| `remotePath` | No | `"/"` | Remote directory path |
+| `context` | No | `~/.mounted/<profile>` | Mount point directory |
+| `autoSync` | No | `false` | Enable auto-sync daemon for this profile |
+| `autoSyncDebounce` | No | `2000` | Milliseconds to wait before uploading (prevents thrashing) |
+
+*Either `password` or `sshKey` required. SSH key preferred for SFTP.
+
+### Security Warning
+
+**Passwords are stored in plaintext** in your config file. This is a limitation of how lftp works.
+
+**Important:** Protect your config file:
+```bash
+chmod 600 ~/.config/sftp-sync/config.json
+```
+
+For better security, use SSH key authentication instead of passwords when possible.
 
 ## Usage
 
-### Sync Commands
-
-All sync commands operate on your **current working directory**:
+### Basic Sync Commands
 
 ```bash
-# Navigate to your project directory
-cd /path/to/your/project
-
 # Upload current directory to remote
+cd /path/to/project
 sftp-sync up myserver
 
-# Download remote directory to current directory
+# Download from remote to current directory
 sftp-sync down myserver
 
-# Preview what would be uploaded from current directory
+# Preview what would be uploaded (dry-run)
 sftp-sync diff myserver
-
-# Upload single file from current directory
-sftp-sync push myserver index.html
-
-# Download single file to current directory
-sftp-sync pull myserver style.css
 ```
 
-### Mount Commands
+### Single File Operations
+
+```bash
+# Upload one file
+sftp-sync push myserver index.html
+
+# Download one file
+sftp-sync pull myserver style.css
+
+# Upload current file (detects project root automatically)
+sftp-sync current myserver /home/user/project/src/main.go
+```
+
+### Mounting
 
 ```bash
 # Mount remote filesystem
 sftp-sync mount myserver
-# Default mount point: ~/.mounted/myserver/
-# Or uses custom 'context' path from config if set
+# Default: ~/.mounted/myserver/
 
-# Mount and open in yazi
+# Mount and browse with yazi
 sftp-sync mount myserver --yazi
-# Opens yazi in floating kitty window
-# Auto-unmounts when yazi closes
+# Opens in floating kitty window, auto-unmounts on exit
 
-# Unmount a profile
+# Unmount
 sftp-sync unmount myserver
 
-# Unmount all profiles
+# Unmount everything
 sftp-sync unmount --all
 
 # List mounted profiles
 sftp-sync mounts
 ```
 
-### Editor Integration (Helix)
+### Auto-Sync Daemon
 
-sftp-sync automatically detects project roots when called with absolute file paths, making it perfect for editor integration.
+The daemon watches your files and uploads changes automatically.
 
-Add to your `~/.config/helix/config.toml`:
+```bash
+# Run daemon in foreground (for testing)
+sftp-sync daemon
 
-```toml
-[keys.normal.space.backspace]
-u = ":run-shell-command sftp-sync up <profile> %{buffer_name}"
-d = ":run-shell-command sftp-sync down <profile> %{buffer_name}"
-c = ":run-shell-command sftp-sync current <profile> %{buffer_name}"
+# Install as systemd user service
+sftp-sync install-daemon
+
+# Start the service
+systemctl --user start sftp-sync
+systemctl --user enable sftp-sync  # Start on boot
+
+# Check status
+systemctl --user status sftp-sync
+
+# View logs
+journalctl --user -u sftp-sync -f
+
+# Uninstall
+sftp-sync uninstall-daemon
 ```
 
 **How it works:**
-- Detects absolute paths from editors (e.g., `/home/user/project/file.html`)
-- Walks up directory tree to find `.git` (project root)
-- Uses project root as context for sync operations
-- Works regardless of where you opened the editor
+- Watches all directories configured with `"autoSync": true`
+- Debounces file changes (waits 2s by default before uploading)
+- Batches notifications (won't spam you)
+- Retries failed uploads with exponential backoff
+- Hot-reloads config when you edit it
+- Respects `.syncignore` patterns
 
-### Niri Window Rules
+### .syncignore File
 
-Add to your `~/.config/niri/niri.kdl` for floating yazi windows:
+Create a `.syncignore` file in your project root to exclude files from auto-sync:
+
+```gitignore
+# Ignore patterns (like .gitignore syntax)
+*.log
+*.tmp
+node_modules/
+.git/
+dist/
+.env
+
+# Use doublestar patterns
+**/*.backup
+**/temp/**
+```
+
+**Pattern syntax:**
+- Uses [doublestar](https://github.com/bmatcuk/doublestar) glob patterns
+- `*` matches anything except `/`
+- `**` matches anything including `/`
+- `?` matches single character
+- Relative to project root
+
+## Editor Integration
+
+sftp-sync detects project roots automatically when called with absolute paths. Perfect for editor keybindings!
+
+### Helix
+
+Add to `~/.config/helix/config.toml`:
+
+```toml
+[keys.normal.space]
+u = ":run-shell-command sftp-sync up myserver %{buffer_name}"
+d = ":run-shell-command sftp-sync down myserver %{buffer_name}"
+c = ":run-shell-command sftp-sync current myserver %{buffer_name}"
+```
+
+**How it works:**
+- Editor passes absolute path like `/home/user/project/src/file.js`
+- sftp-sync walks up directories to find `.git` (project root)
+- Uses project root as sync context
+- Works from anywhere in your project
+
+### Other Editors
+
+Any editor that can run shell commands with the current file path will work. Just pass the absolute path as the last argument.
+
+## Window Manager Integration
+
+### Niri
+
+Floating yazi windows with `--yazi` flag:
 
 ```kdl
 window-rule {
@@ -187,26 +284,91 @@ window-rule {
 ## How It Works
 
 ### Sync Operations
-- Uses `lftp` for reliable FTP/SFTP synchronization
-- Supports mirroring with deletions
-- Handles .ftpquota files gracefully
+- Uses `lftp` mirror command for reliable sync
+- Supports deletions (mirror mode)
+- Automatically skips `.ftpquota` files
 - Counts transferred files
-- Detailed error reporting
+- Shows detailed errors
 
 ### Mounting
-- **SFTP**: Uses `sshfs` with FUSE
-- **FTP**: Uses `rclone` with FUSE
-- Verifies remote reachability before mounting
+- **SFTP:** Uses `sshfs` with FUSE
+- **FTP:** Uses `rclone` with FUSE
+- Checks server reachability before mounting
 - Prevents duplicate mounts
-- Force unmount support for stuck mounts
+- Force unmount support
 - Auto-cleanup on exit
 
-### Yazi Integration
-- Launches in `kitty` terminal with unique title
-- Window title format: `SFTP-Mount-<profile>`
-- Blocks until yazi exits
-- Auto-unmounts when closed
+### Auto-Sync Daemon
+- File watching with `fsnotify`
+- Debouncing prevents rapid re-uploads during saves
+- Upload queue with retry logic (1s, 2s, 4s backoff)
+- Notification batching (shows summary every 30s or 5 files)
+- Config hot-reload (edit config.json while daemon runs)
+- Multiple profile support with context specificity matching
+
+### Context Detection
+
+When you sync from a subdirectory, sftp-sync finds your project root by walking up and looking for `.git`. This lets you run sync commands from anywhere in your project.
+
+For overlapping contexts (e.g., one project inside another), sftp-sync picks the most specific match.
+
+## Troubleshooting
+
+### "Profile not found"
+Check your config file exists at `~/.config/sftp-sync/config.json` and has valid JSON syntax.
+
+### "Permission denied" on mount
+Make sure the mount point directory exists and you have write permissions.
+
+### Auto-sync not working
+1. Check `systemctl --user status sftp-sync`
+2. View logs: `journalctl --user -u sftp-sync -f`
+3. Verify `"autoSync": true` in config
+4. Make sure `context` path exists and matches your project
+
+### Notifications not showing
+- Check `notify-send` is installed
+- Some desktop environments filter notifications by urgency
+- Test: `notify-send "Test" "Message"`
+
+### Mount stuck / won't unmount
+```bash
+# Force unmount
+fusermount -u ~/.mounted/profilename
+
+# Or unmount all with force flag
+sftp-sync unmount --all
+```
+
+### IPv6 addresses
+IPv6 is fully supported. Just use the address as-is:
+```json
+{
+  "host": "2001:db8::1"
+}
+```
+
+### SSH key not working
+- Make sure key file has correct permissions: `chmod 600 ~/.ssh/id_rsa`
+- Verify key is in the correct format (OpenSSH or PEM)
+- Test manually: `ssh -i ~/.ssh/id_rsa user@host`
+
+## Performance Tips
+
+### Large Directories
+- Use `.syncignore` to exclude `node_modules`, build artifacts, etc.
+- Consider syncing subdirectories individually
+- Use `diff` command first to preview changes
+
+### Many Small Files
+- Auto-sync daemon queues uploads (max 100 pending)
+- Adjust `autoSyncDebounce` if saves are too frequent
+- Consider batch syncing with `up` command instead
+
+## Project History
+
+Originally a Fish shell script, rewritten in Go for better performance, reliability, and features.
 
 ## License
 
-Original script Rewritten to Go.
+Free to use and modify.

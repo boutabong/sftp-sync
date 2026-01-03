@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"sftp-sync/internal/config"
@@ -51,7 +52,7 @@ func checkSSH(profile *config.Profile, timeout time.Duration) error {
 
 // checkTCP attempts a TCP connection to the host:port
 func checkTCP(profile *config.Profile, timeout time.Duration) error {
-	addr := fmt.Sprintf("%s:%d", profile.Host, profile.Port)
+	addr := net.JoinHostPort(profile.Host, strconv.Itoa(profile.Port))
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return fmt.Errorf("cannot reach %s: %w", addr, err)

@@ -56,7 +56,10 @@ func Mount(profileName string, openYazi bool) error {
 		// Detailed error notification
 		errorMsg := err.Error()
 		if strings.Contains(errorMsg, "already mounted") {
-			mountPoint, _ := mount.GetMountPoint(profileName, profile)
+			mountPoint, err := mount.GetMountPoint(profileName, profile)
+			if err != nil {
+				mountPoint = "(unknown location)"
+			}
 			notify.Error("Mount Error", fmt.Sprintf("Profile '%s' is already mounted at %s", profileName, mountPoint))
 		} else if strings.Contains(errorMsg, "unreachable") {
 			notify.Error("Mount Error", fmt.Sprintf("Cannot reach %s:%d\n%s", profile.Host, profile.Port, errorMsg))
